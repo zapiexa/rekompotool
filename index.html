@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kalkulator makro – uzupełnianie dzienne</title>
+  <style>
+    :root {
+      --bg: #1a1d23;
+      --surface: #252830;
+      --surface2: #2d3139;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #7c9cbf;
+      --accent2: #8fbc8f;
+      --danger: #c75c5c;
+      --radius: 10px;
+      --font: 'Segoe UI', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 20px; color: var(--accent); }
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--surface2);
+      padding-bottom: 0;
+    }
+    .tabs button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 12px 20px;
+      cursor: pointer;
+      font-size: 1rem;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .tabs button:hover { color: var(--text); }
+    .tabs button.active { color: var(--accent); background: var(--surface); border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
+    .panel { display: none; padding: 20px; background: var(--surface); border-radius: var(--radius); }
+    .panel.active { display: block; }
+    label { display: block; margin-bottom: 4px; color: var(--muted); font-size: 0.9rem; }
+    input, select, button { font-family: inherit; font-size: 1rem; }
+    input[type="number"], input[type="text"], select {
+      width: 100%;
+      max-width: 120px;
+      padding: 8px 12px;
+      border: 1px solid var(--surface2);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+    }
+    button.primary { background: var(--accent); color: #fff; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; }
+    button.primary:hover { filter: brightness(1.1); }
+    button.danger { background: var(--danger); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+    .grid { display: grid; gap: 16px; }
+    .grid-7 { grid-template-columns: repeat(7, 1fr); }
+    .day-card {
+      background: var(--surface2);
+      padding: 14px;
+      border-radius: var(--radius);
+      min-width: 0;
+    }
+    .day-card h3 { margin: 0 0 10px; font-size: 0.95rem; color: var(--accent); }
+    .presets-row { display: flex; flex-wrap: wrap; gap: 20px; }
+    .preset-card {
+      background: var(--surface2);
+      padding: 18px;
+      border-radius: var(--radius);
+      min-width: 280px;
+    }
+    .preset-card h3 { margin: 0 0 12px; font-size: 1rem; color: var(--accent); }
+    .month-table { width: 100%; min-width: 700px; }
+    .month-table th, .month-table td { padding: 8px 10px; font-size: 0.9rem; }
+    .month-table .typ-select { min-width: 110px; max-width: 130px; }
+    .month-table .catering-inp { max-width: 70px; }
+    .month-table .rem-cell { font-size: 0.85rem; color: var(--accent2); }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 12px; }
+    .row:last-child { margin-bottom: 0; }
+    .field { display: flex; flex-direction: column; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--surface2); }
+    th { color: var(--muted); font-weight: 500; }
+    .summary-box {
+      background: var(--surface2);
+      padding: 16px;
+      border-radius: var(--radius);
+      margin-bottom: 20px;
+    }
+    .summary-box h3 { margin: 0 0 10px; font-size: 1rem; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .summary-item { padding: 8px; background: var(--bg); border-radius: 6px; }
+    .summary-item .val { font-size: 1.2rem; color: var(--accent2); }
+    .summary-item.negative .val { color: var(--danger); }
+    .product-row, .rule-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; padding: 10px; background: var(--surface2); border-radius: 6px; }
+    .product-list, .rules-list { margin-top: 16px; }
+    .day-select { margin-bottom: 20px; }
+    .day-select label { display: inline; margin-right: 10px; }
+    .day-select select { max-width: 200px; }
+    .result-table { margin-top: 20px; }
+    .result-table td.num { text-align: right; }
+    @media (max-width: 900px) {
+      .grid-7 { grid-template-columns: repeat(2, 1fr); }
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 500px) {
+      .grid-7 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Kalkulator makro – uzupełnianie dzienne</h1>
+  <div class="tabs">
+    <button type="button" data-tab="cele" class="active">Cele i catering</button>
+    <button type="button" data-tab="produkty">Produkty</button>
+    <button type="button" data-tab="dzien">Dzień – co dojeść</button>
+  </div>
+
+  <div id="panel-cele" class="panel active">
+    <p style="color: var(--muted); margin-bottom: 20px;">Ustaw cele na <strong>dzień trening</strong> i <strong>dzień nietrening</strong>, potem w tabeli miesiąca zaznacz typ dnia i wpisz catering dla każdej daty.</p>
+    <div class="presets-row">
+      <div class="preset-card">
+        <h3>Dzień trening</h3>
+        <div class="row">
+          <div class="field"><label>kcal</label><input type="number" id="preset-trening-kcal" min="0"></div>
+          <div class="field"><label>B (g)</label><input type="number" id="preset-trening-protein" min="0" step="0.1"></div>
+          <div class="field"><label>W (g)</label><input type="number" id="preset-trening-carbs" min="0" step="0.1"></div>
+          <div class="field"><label>T (g)</label><input type="number" id="preset-trening-fat" min="0" step="0.1"></div>
+        </div>
+      </div>
+      <div class="preset-card">
+        <h3>Dzień nietrening</h3>
+        <div class="row">
+          <div class="field"><label>kcal</label><input type="number" id="preset-nietrening-kcal" min="0"></div>
+          <div class="field"><label>B (g)</label><input type="number" id="preset-nietrening-protein" min="0" step="0.1"></div>
+          <div class="field"><label>W (g)</label><input type="number" id="preset-nietrening-carbs" min="0" step="0.1"></div>
+          <div class="field"><label>T (g)</label><input type="number" id="preset-nietrening-fat" min="0" step="0.1"></div>
+        </div>
+      </div>
+    </div>
+    <div class="month-nav" style="margin-top: 24px;">
+      <h3 style="margin: 0 0 12px;">Plan miesiąca</h3>
+      <div class="row" style="align-items: center;">
+        <button type="button" id="month-prev" class="primary" style="padding: 8px 14px;">←</button>
+        <span id="month-label" style="min-width: 180px; text-align: center; font-weight: 600;"></span>
+        <button type="button" id="month-next" class="primary" style="padding: 8px 14px;">→</button>
+      </div>
+    </div>
+    <div class="month-table-wrap" style="overflow-x: auto; margin-top: 16px;">
+      <table class="month-table" id="month-table">
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Dzień</th>
+            <th>Typ dnia</th>
+            <th>Catering kcal</th>
+            <th>B</th>
+            <th>W</th>
+            <th>T</th>
+            <th>Do uzupełnienia</th>
+          </tr>
+        </thead>
+        <tbody id="month-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="panel-produkty" class="panel">
+    <p style="color: var(--muted); margin-bottom: 20px;">Dodaj produkty (wartości na 100 g lub na sztukę) oraz priorytety i limity (np. miód max 40 g, tylko z waflami ryżowymi).</p>
+    <div class="product-form">
+      <h3>Dodaj produkt</h3>
+      <div class="row">
+        <div class="field">
+          <label>Nazwa</label>
+          <input type="text" id="prod-name" placeholder="np. Miód">
+        </div>
+        <div class="field">
+          <label>Jednostka</label>
+          <select id="prod-unit">
+            <option value="g">gramy (g)</option>
+            <option value="szt">sztuki</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Waga 1 szt (g) – tylko przy sztukach</label>
+          <input type="number" id="prod-piece-g" min="0" step="1" placeholder="np. 15">
+        </div>
+        <div class="field">
+          <label>kcal / 100 g</label>
+          <input type="number" id="prod-kcal" min="0" step="1" placeholder="0">
+        </div>
+        <div class="field">
+          <label>B (g) / 100 g</label>
+          <input type="number" id="prod-protein" min="0" step="0.1" placeholder="0">
+        </div>
+        <div class="field">
+          <label>W (g) / 100 g</label>
+          <input type="number" id="prod-carbs" min="0" step="0.1" placeholder="0">
+        </div>
+        <div class="field">
+          <label>T (g) / 100 g</label>
+          <input type="number" id="prod-fat" min="0" step="0.1" placeholder="0">
+        </div>
+        <div class="field" style="align-self: flex-end;">
+          <button type="button" class="primary" id="btn-add-product">Dodaj produkt</button>
+        </div>
+      </div>
+    </div>
+    <div class="product-list" id="product-list"></div>
+    <h3 style="margin-top: 28px;">Priorytety i limity</h3>
+    <p style="color: var(--muted); margin-bottom: 12px;">Kolejność = priorytet (pierwszy = najpierw używany). Ustaw max ilość i opcjonalnie „tylko z” innym produktem.</p>
+    <div class="rules-list" id="rules-list"></div>
+    <div class="row" style="margin-top: 12px;">
+      <div class="field">
+        <label>Produkt</label>
+        <select id="rule-product"></select>
+      </div>
+      <div class="field">
+        <label>Priorytet (1 = pierwszy)</label>
+        <input type="number" id="rule-priority" min="1" value="1">
+      </div>
+      <div class="field">
+        <label>Max ilość (g lub szt)</label>
+        <input type="number" id="rule-max" min="0" step="1" placeholder="np. 40">
+      </div>
+      <div class="field">
+        <label>Tylko z produktem (opcjonalnie)</label>
+        <select id="rule-only-with">
+          <option value="">— brak —</option>
+        </select>
+      </div>
+      <div class="field" style="align-self: flex-end;">
+        <button type="button" class="primary" id="btn-add-rule">Zapisz regułę</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-dzien" class="panel">
+    <div class="day-select">
+      <label>Wybierz datę:</label>
+      <input type="month" id="day-month" style="max-width: 160px;">
+      <select id="day-day" style="max-width: 80px; margin-left: 8px;"></select>
+    </div>
+    <div class="summary-box" id="remaining-summary">
+      <h3>Do uzupełnienia (cel − catering)</h3>
+      <div class="summary-grid">
+        <div class="summary-item"><span class="label">kcal</span><div class="val" id="rem-kcal">0</div></div>
+        <div class="summary-item"><span class="label">Białko (g)</span><div class="val" id="rem-protein">0</div></div>
+        <div class="summary-item"><span class="label">Węglowodany (g)</span><div class="val" id="rem-carbs">0</div></div>
+        <div class="summary-item"><span class="label">Tłuszcze (g)</span><div class="val" id="rem-fat">0</div></div>
+      </div>
+    </div>
+    <div class="result-table">
+      <h3>Ile zjeść – propozycja (z uwzględnieniem priorytetów i limitów)</h3>
+      <table id="result-table">
+        <thead>
+          <tr><th>Produkt</th><th>Ilość</th><th>kcal</th><th>B</th><th>W</th><th>T</th></tr>
+        </thead>
+        <tbody id="result-tbody"></tbody>
+      </table>
+      <p id="result-message" style="color: var(--muted); margin-top: 10px;"></p>
+    </div>
+  </div>
+
+  <script>
+    const WEEKDAYS = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
+    const MONTHS = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+
+    function load() {
+      const raw = localStorage.getItem('makro-app');
+      if (!raw) return { trainingDay: defMacro(), restDay: defMacro(), monthly: {}, products: [], rules: [] };
+      const data = JSON.parse(raw);
+      const def = defMacro();
+      return {
+        trainingDay: data.trainingDay || def,
+        restDay: data.restDay || def,
+        monthly: data.monthly || {},
+        products: data.products || [],
+        rules: data.rules || []
+      };
+    }
+    function defMacro() { return { kcal: 0, protein: 0, carbs: 0, fat: 0 }; }
+
+    function save(state) {
+      localStorage.setItem('makro-app', JSON.stringify(state));
+    }
+
+    let state = load();
+    let currentMonthKey = getMonthKey(new Date());
+
+    function getMonthKey(d) {
+      const y = d.getFullYear(), m = d.getMonth() + 1;
+      return y + '-' + String(m).padStart(2, '0');
+    }
+    function getMonthLabel(key) {
+      const [y, m] = key.split('-').map(Number);
+      return MONTHS[m - 1] + ' ' + y;
+    }
+    function daysInMonth(key) {
+      const [y, m] = key.split('-').map(Number);
+      return new Date(y, m, 0).getDate();
+    }
+
+    function initPresets() {
+      document.getElementById('preset-trening-kcal').value = state.trainingDay.kcal;
+      document.getElementById('preset-trening-protein').value = state.trainingDay.protein;
+      document.getElementById('preset-trening-carbs').value = state.trainingDay.carbs;
+      document.getElementById('preset-trening-fat').value = state.trainingDay.fat;
+      document.getElementById('preset-nietrening-kcal').value = state.restDay.kcal;
+      document.getElementById('preset-nietrening-protein').value = state.restDay.protein;
+      document.getElementById('preset-nietrening-carbs').value = state.restDay.carbs;
+      document.getElementById('preset-nietrening-fat').value = state.restDay.fat;
+      ['trening', 'nietrening'].forEach(t => {
+        ['kcal', 'protein', 'carbs', 'fat'].forEach(macro => {
+          const el = document.getElementById('preset-' + t + '-' + macro);
+          if (!el) return;
+          el.addEventListener('change', () => {
+            const val = parseFloat(el.value) || 0;
+            state[t === 'trening' ? 'trainingDay' : 'restDay'][macro] = val;
+            save(state);
+            renderMonthTable();
+          });
+        });
+      });
+    }
+
+    function ensureMonth(monthKey) {
+      if (!state.monthly[monthKey]) state.monthly[monthKey] = {};
+      return state.monthly[monthKey];
+    }
+
+    function getDayEntry(monthKey, day) {
+      const month = ensureMonth(monthKey);
+      const key = String(day);
+      if (!month[key]) month[key] = { type: 'nietrening', catering: defMacro() };
+      return month[key];
+    }
+
+    function getTarget(monthKey, day) {
+      const entry = getDayEntry(monthKey, day);
+      return entry.type === 'trening' ? state.trainingDay : state.restDay;
+    }
+
+    function getRemaining(monthKey, day) {
+      const target = getTarget(monthKey, day);
+      const catering = getDayEntry(monthKey, day).catering;
+      return {
+        kcal: Math.max(0, target.kcal - catering.kcal),
+        protein: Math.max(0, target.protein - catering.protein),
+        carbs: Math.max(0, target.carbs - catering.carbs),
+        fat: Math.max(0, target.fat - catering.fat)
+      };
+    }
+
+    function renderMonthTable() {
+      document.getElementById('month-label').textContent = getMonthLabel(currentMonthKey);
+      const tbody = document.getElementById('month-tbody');
+      const days = daysInMonth(currentMonthKey);
+      const [y, m] = currentMonthKey.split('-').map(Number);
+      let html = '';
+      for (let d = 1; d <= days; d++) {
+        const date = new Date(y, m - 1, d);
+        const dayName = WEEKDAYS[date.getDay()];
+        const entry = getDayEntry(currentMonthKey, d);
+        const rem = getRemaining(currentMonthKey, d);
+        const remStr = rem.kcal > 0 || rem.protein > 0 ? (Math.round(rem.kcal) + ' kcal') : '—';
+        html += `
+          <tr>
+            <td>${d}.${String(m).padStart(2,'0')}</td>
+            <td>${dayName}</td>
+            <td>
+              <select class="typ-select" data-month="${currentMonthKey}" data-day="${d}" data-field="type">
+                <option value="nietrening" ${entry.type === 'nietrening' ? 'selected' : ''}>Nietrening</option>
+                <option value="trening" ${entry.type === 'trening' ? 'selected' : ''}>Trening</option>
+              </select>
+            </td>
+            <td><input type="number" class="catering-inp" data-month="${currentMonthKey}" data-day="${d}" data-macro="kcal" value="${entry.catering.kcal}" min="0"></td>
+            <td><input type="number" class="catering-inp" data-month="${currentMonthKey}" data-day="${d}" data-macro="protein" value="${entry.catering.protein}" min="0" step="0.1" style="max-width: 60px;"></td>
+            <td><input type="number" class="catering-inp" data-month="${currentMonthKey}" data-day="${d}" data-macro="carbs" value="${entry.catering.carbs}" min="0" step="0.1" style="max-width: 60px;"></td>
+            <td><input type="number" class="catering-inp" data-month="${currentMonthKey}" data-day="${d}" data-macro="fat" value="${entry.catering.fat}" min="0" step="0.1" style="max-width: 60px;"></td>
+            <td class="rem-cell">${remStr}</td>
+          </tr>`;
+      }
+      tbody.innerHTML = html;
+      tbody.querySelectorAll('.typ-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+          const entry = getDayEntry(sel.dataset.month, parseInt(sel.dataset.day, 10));
+          entry.type = sel.value;
+          save(state);
+          renderMonthTable();
+        });
+      });
+      tbody.querySelectorAll('.catering-inp').forEach(inp => {
+        inp.addEventListener('change', () => {
+          const entry = getDayEntry(inp.dataset.month, parseInt(inp.dataset.day, 10));
+          entry.catering[inp.dataset.macro] = parseFloat(inp.value) || 0;
+          save(state);
+          renderMonthTable();
+        });
+      });
+    }
+
+    document.getElementById('month-prev').addEventListener('click', () => {
+      const [y, m] = currentMonthKey.split('-').map(Number);
+      const d = new Date(y, m - 2, 1);
+      currentMonthKey = getMonthKey(d);
+      renderMonthTable();
+    });
+    document.getElementById('month-next').addEventListener('click', () => {
+      const [y, m] = currentMonthKey.split('-').map(Number);
+      const d = new Date(y, m, 1);
+      currentMonthKey = getMonthKey(d);
+      renderMonthTable();
+    });
+
+    function renderProducts() {
+      const list = document.getElementById('product-list');
+      list.innerHTML = state.products.map((p, i) => `
+        <div class="product-row">
+          <strong>${escapeHtml(p.name)}</strong>
+          <span>${p.unit === 'szt' ? 'szt' : 'g'} · ${p.kcal} kcal, B:${p.protein} W:${p.carbs} T:${p.fat} / 100 g${p.unit === 'szt' && p.pieceG ? ` (${p.pieceG} g/szt)` : ''}</span>
+          <button type="button" class="danger" data-remove-product="${i}">Usuń</button>
+        </div>
+      `).join('');
+      list.querySelectorAll('[data-remove-product]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = parseInt(btn.dataset.removeProduct, 10);
+          state.products.splice(i, 1);
+          state.rules = state.rules.filter(r => r.productId !== i).map(r => ({ ...r, productId: r.productId > i ? r.productId - 1 : r.productId, onlyWithId: r.onlyWithId != null && r.onlyWithId > i ? r.onlyWithId - 1 : r.onlyWithId === i ? null : r.onlyWithId }));
+          save(state);
+          renderProducts();
+          renderRules();
+          fillRuleSelects();
+        });
+      });
+      fillRuleSelects();
+    }
+
+    function fillRuleSelects() {
+      const sel = document.getElementById('rule-product');
+      const onlyWith = document.getElementById('rule-only-with');
+      const opts = state.products.map((p, i) => `<option value="${i}">${escapeHtml(p.name)}</option>`).join('');
+      sel.innerHTML = opts || '<option value="">— brak produktów —</option>';
+      onlyWith.innerHTML = '<option value="">— brak —</option>' + opts;
+    }
+
+    function renderRules() {
+      const list = document.getElementById('rules-list');
+      const sorted = [...state.rules].sort((a, b) => (a.priority || 999) - (b.priority || 999));
+      list.innerHTML = sorted.map((r, i) => {
+        const p = state.products[r.productId];
+        const onlyWithName = r.onlyWithId != null && state.products[r.onlyWithId] ? state.products[r.onlyWithId].name : null;
+        return `
+          <div class="rule-row">
+            <span><strong>${p ? escapeHtml(p.name) : '?'}</strong></span>
+            <span>Priorytet: ${r.priority ?? '—'}</span>
+            <span>Max: ${r.max != null ? r.max + (p && p.unit === 'szt' ? ' szt' : ' g') : '—'}</span>
+            ${onlyWithName ? `<span>Tylko z: ${escapeHtml(onlyWithName)}</span>` : ''}
+            <button type="button" class="danger" data-remove-rule="${state.rules.indexOf(r)}">Usuń regułę</button>
+          </div>
+        `;
+      }).join('');
+      list.querySelectorAll('[data-remove-rule]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = parseInt(btn.dataset.removeRule, 10);
+          state.rules.splice(i, 1);
+          save(state);
+          renderRules();
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    document.getElementById('btn-add-product').addEventListener('click', () => {
+      const name = document.getElementById('prod-name').value.trim();
+      const unit = document.getElementById('prod-unit').value;
+      const pieceG = unit === 'szt' ? (parseFloat(document.getElementById('prod-piece-g').value) || 0) : undefined;
+      const kcal = parseFloat(document.getElementById('prod-kcal').value) || 0;
+      const protein = parseFloat(document.getElementById('prod-protein').value) || 0;
+      const carbs = parseFloat(document.getElementById('prod-carbs').value) || 0;
+      const fat = parseFloat(document.getElementById('prod-fat').value) || 0;
+      if (!name) return;
+      state.products.push({ name, unit, pieceG, kcal, protein, carbs, fat });
+      save(state);
+      document.getElementById('prod-name').value = '';
+      document.getElementById('prod-piece-g').value = '';
+      document.getElementById('prod-kcal').value = '';
+      document.getElementById('prod-protein').value = '';
+      document.getElementById('prod-carbs').value = '';
+      document.getElementById('prod-fat').value = '';
+      renderProducts();
+    });
+
+    document.getElementById('btn-add-rule').addEventListener('click', () => {
+      const productId = parseInt(document.getElementById('rule-product').value, 10);
+      if (isNaN(productId) || productId < 0) return;
+      const priority = parseInt(document.getElementById('rule-priority').value, 10) || 1;
+      const max = document.getElementById('rule-max').value.trim() === '' ? null : parseFloat(document.getElementById('rule-max').value);
+      const onlyWithVal = document.getElementById('rule-only-with').value;
+      const onlyWithId = onlyWithVal === '' ? null : parseInt(onlyWithVal, 10);
+      const existing = state.rules.find(r => r.productId === productId);
+      if (existing) {
+        existing.priority = priority;
+        existing.max = max;
+        existing.onlyWithId = onlyWithId;
+      } else {
+        state.rules.push({ productId, priority, max, onlyWithId });
+      }
+      save(state);
+      renderRules();
+    });
+
+    function getRemaining(dayIndex) {
+      const t = state.targets[dayIndex] || { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+      const c = state.catering[dayIndex] || { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+      return {
+        kcal: Math.max(0, t.kcal - c.kcal),
+        protein: Math.max(0, t.protein - c.protein),
+        carbs: Math.max(0, t.carbs - c.carbs),
+        fat: Math.max(0, t.fat - c.fat)
+      };
+    }
+
+    function productToGrams(p, amount) {
+      if (p.unit === 'szt') return (amount * (p.pieceG || 0)) / 100;
+      return amount / 100;
+    }
+
+    function productFromGrams(p, grams) {
+      if (p.unit === 'szt') return (grams / (p.pieceG || 1)) * 100;
+      return grams * 100;
+    }
+
+    function computeFill(monthKey, day) {
+      const rem = getRemaining(monthKey, day);
+      const plan = [];
+      let remaining = { ...rem };
+
+      const rulesByProduct = {};
+      state.rules.forEach(r => { rulesByProduct[r.productId] = r; });
+      const sortedIds = [...state.products.keys()].sort((a, b) => {
+        const pa = rulesByProduct[a]?.priority ?? 999;
+        const pb = rulesByProduct[b]?.priority ?? 999;
+        return pa - pb;
+      });
+
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const productId of sortedIds) {
+          const p = state.products[productId];
+          if (!p) continue;
+          if (plan.some(x => x.productId === productId)) continue;
+          const rule = rulesByProduct[productId];
+          const maxG = rule?.max != null ? (p.unit === 'szt' ? (rule.max * (p.pieceG || 1)) : rule.max) : Infinity;
+          const onlyWithId = rule?.onlyWithId;
+          if (onlyWithId != null) {
+            const otherInPlan = plan.some(x => x.productId === onlyWithId);
+            if (!otherInPlan) continue;
+          }
+          const per100 = { kcal: p.kcal, protein: p.protein, carbs: p.carbs, fat: p.fat };
+          if (per100.kcal <= 0 && per100.protein <= 0 && per100.carbs <= 0 && per100.fat <= 0) continue;
+          let needG = 0;
+          if (remaining.kcal > 0 && per100.kcal > 0) needG = Math.max(needG, (remaining.kcal / per100.kcal) * 100);
+          if (remaining.protein > 0 && per100.protein > 0) needG = Math.max(needG, (remaining.protein / per100.protein) * 100);
+          if (remaining.carbs > 0 && per100.carbs > 0) needG = Math.max(needG, (remaining.carbs / per100.carbs) * 100);
+          if (remaining.fat > 0 && per100.fat > 0) needG = Math.max(needG, (remaining.fat / per100.fat) * 100);
+          const g = Math.min(needG, maxG);
+          if (g <= 0) continue;
+          const add = {
+            kcal: (g / 100) * per100.kcal,
+            protein: (g / 100) * per100.protein,
+            carbs: (g / 100) * per100.carbs,
+            fat: (g / 100) * per100.fat
+          };
+          plan.push({ productId, product: p, grams: g, add });
+          remaining.kcal = Math.max(0, remaining.kcal - add.kcal);
+          remaining.protein = Math.max(0, remaining.protein - add.protein);
+          remaining.carbs = Math.max(0, remaining.carbs - add.carbs);
+          remaining.fat = Math.max(0, remaining.fat - add.fat);
+          changed = true;
+        }
+      }
+
+      return { remaining: getRemaining(monthKey, day), plan, stillMissing: remaining };
+    }
+
+    function getSelectedDate() {
+      const monthInput = document.getElementById('day-month').value;
+      if (!monthInput) return { monthKey: currentMonthKey, day: 1 };
+      const [y, m] = monthInput.split('-').map(Number);
+      const monthKey = y + '-' + String(m).padStart(2, '0');
+      const day = parseInt(document.getElementById('day-day').value, 10) || 1;
+      const last = daysInMonth(monthKey);
+      return { monthKey, day: Math.min(day, last) };
+    }
+
+    function fillDayDropdown() {
+      const monthInput = document.getElementById('day-month').value;
+      const sel = document.getElementById('day-day');
+      if (!monthInput) { sel.innerHTML = ''; return; }
+      const [y, m] = monthInput.split('-').map(Number);
+      const last = new Date(y, m, 0).getDate();
+      sel.innerHTML = Array.from({ length: last }, (_, i) => i + 1).map(d => `<option value="${d}">${d}</option>`).join('');
+      const today = new Date();
+      if (y === today.getFullYear() && m === today.getMonth() + 1) sel.value = String(today.getDate());
+      else sel.value = '1';
+    }
+
+    function updateDayPanel() {
+      const { monthKey, day } = getSelectedDate();
+      const rem = getRemaining(monthKey, day);
+      document.getElementById('rem-kcal').textContent = Math.round(rem.kcal);
+      document.getElementById('rem-protein').textContent = rem.protein.toFixed(1);
+      document.getElementById('rem-carbs').textContent = rem.carbs.toFixed(1);
+      document.getElementById('rem-fat').textContent = rem.fat.toFixed(1);
+      document.getElementById('rem-kcal').closest('.summary-item').classList.toggle('negative', rem.kcal < 0);
+      document.getElementById('rem-protein').closest('.summary-item').classList.toggle('negative', rem.protein < 0);
+      document.getElementById('rem-carbs').closest('.summary-item').classList.toggle('negative', rem.carbs < 0);
+      document.getElementById('rem-fat').closest('.summary-item').classList.toggle('negative', rem.fat < 0);
+
+      const { plan, stillMissing } = computeFill(monthKey, day);
+      const tbody = document.getElementById('result-tbody');
+      if (plan.length === 0) {
+        const hasRem = rem.kcal > 0 || rem.protein > 0 || rem.carbs > 0 || rem.fat > 0;
+        tbody.innerHTML = '<tr><td colspan="6" style="color: var(--muted);">' +
+          (hasRem ? 'Dodaj produkty i ustaw priorytety/limity w zakładce Produkty, żeby zobaczyć propozycję uzupełnienia.' : 'Nic do uzupełnienia – cel jest pokryty cateringiem.') +
+          '</td></tr>';
+        document.getElementById('result-message').textContent = '';
+      } else {
+        tbody.innerHTML = plan.map(({ product, grams, add }) => {
+          const amount = product.unit === 'szt' ? (grams / (product.pieceG || 1)).toFixed(1) + ' szt' : Math.round(grams) + ' g';
+          return `<tr>
+            <td>${escapeHtml(product.name)}</td>
+            <td class="num">${amount}</td>
+            <td class="num">${Math.round(add.kcal)}</td>
+            <td class="num">${add.protein.toFixed(1)}</td>
+            <td class="num">${add.carbs.toFixed(1)}</td>
+            <td class="num">${add.fat.toFixed(1)}</td>
+          </tr>`;
+        }).join('');
+        let msg = 'Propozycja na podstawie priorytetów i limitów. ';
+        const stillRem = stillMissing.kcal > 0 || stillMissing.protein > 0 || stillMissing.carbs > 0 || stillMissing.fat > 0;
+        if (stillRem) msg += 'Część makr może pozostać nieuzupełniona (limity lub brak produktów).';
+        document.getElementById('result-message').textContent = msg;
+      }
+    }
+
+    document.querySelectorAll('.tabs button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'dzien') { fillDayDropdown(); updateDayPanel(); }
+        if (btn.dataset.tab === 'cele') renderMonthTable();
+      });
+    });
+
+    const today = new Date();
+    document.getElementById('day-month').value = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0');
+    document.getElementById('day-month').addEventListener('change', () => { fillDayDropdown(); updateDayPanel(); });
+    document.getElementById('day-day').addEventListener('change', updateDayPanel);
+
+    initPresets();
+    renderMonthTable();
+    renderProducts();
+    renderRules();
+    fillDayDropdown();
+    updateDayPanel();
+  </script>
+</body>
+</html>
